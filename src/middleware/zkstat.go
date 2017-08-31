@@ -29,7 +29,7 @@ func listZkStats(zkPorts []uint64) (zkStats []*ZkStat) {
 		oneStat := &ZkStat{Port: strconv.FormatUint(onePort, 10)}
 		defer tcpConn.Close()
 		tcpConn.Write([]byte("ruok"))
-		var resp []byte
+		var resp = make([]byte, 1024/8)
 		tcpConn.Read(resp)
 		if 0 == strings.Compare(string(resp), "imok") {
 			oneStat.ZkServiceHealth = 1
@@ -37,7 +37,7 @@ func listZkStats(zkPorts []uint64) (zkStats []*ZkStat) {
 			oneStat.ZkServiceHealth = 0
 		}
 		tcpConn.Write([]byte("mntr"))
-		resp = []byte{}
+		resp = make([]byte, 1024*8)
 		tcpConn.Read(resp)
 		reader := bufio.NewReader(bytes.NewBuffer(resp))
 		for {

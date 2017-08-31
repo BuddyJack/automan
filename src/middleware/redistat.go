@@ -124,8 +124,8 @@ func (*RediStat) Metrics() (metrics []*model.MetricValue) {
 	for idx, oneStat := range rediStatList {
 		//update
 		port := oneStat.Port
-		prevStat := rediStatMap[port][0]
-		rediStatMap[port] = [2]*RediStat{rediStatList[idx], prevStat}
+		rediStatMap[port] = [2]*RediStat{rediStatList[idx], rediStatMap[port][0]}
+		prevStat := rediStatMap[port][1]
 		var connectClients, rejectedConns, evictedKeys, blockedClients uint64
 		var memFragRatio, usedMemory, expiresRatio, keyspaceHitratio, opsPerSec float64
 		if nil == prevStat {

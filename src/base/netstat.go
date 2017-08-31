@@ -85,13 +85,11 @@ func (netstat *NetStat) Metrics() (metrics []*model.MetricValue) {
 	defer netLock.Unlock()
 	for idx := range netList {
 		device := netList[idx].Device
-		prevStat := netStatsMap[device][0]
-		netStatsMap[device] = [2]*NetStat{netList[idx], prevStat}
+		netStatsMap[device] = [2]*NetStat{netList[idx], netStatsMap[device][0]}
+		prevStat := netStatsMap[device][1]
 		var readSpeed, writeSpeed float64
 		var readDrop, readErr, writeDrop, writeErr uint64
-
 		nowStat := netList[idx]
-
 		if nil == prevStat {
 			readSpeed = 0
 			writeSpeed = 0
