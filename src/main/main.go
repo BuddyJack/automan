@@ -1,12 +1,16 @@
 package main
 
-import "strings"
+import (
+	"os/exec"
+)
 
 func main() {
-	var test = make(map[string][2]string)
 
-	if 0==strings.Compare(test["1"][0],"") {
-		println("test")
+	cmd := exec.Command("sh", "-c", "ps aux|grep -v PID|sort -rn -k3|head -3")
+	bs,err :=cmd.Output()
+	if nil!=err{
+		println("error")
+	}else {
+		println(string(bs))
 	}
-
 }

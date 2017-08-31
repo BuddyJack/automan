@@ -2,7 +2,6 @@ package base
 
 import (
 	"os/exec"
-	"io/ioutil"
 	"bufio"
 	"bytes"
 	"strings"
@@ -18,12 +17,10 @@ type TcpConnStat struct {
 
 func listTcpConnStat() *TcpConnStat {
 	cmd := exec.Command("sh", "-c", "netstat -n | awk '/^tcp/ {++S[$NF]} END {for(a in S) print a, S[a]}'")
-	out, err := cmd.StdoutPipe()
+	bs, err := cmd.Output()
 	if nil != err {
 		return nil
 	}
-	defer out.Close()
-	bs, err := ioutil.ReadAll(out)
 	reader := bufio.NewReader(bytes.NewBuffer(bs))
 	oneStat := &TcpConnStat{}
 	for {

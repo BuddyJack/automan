@@ -2,7 +2,6 @@ package base
 
 import (
 	"os/exec"
-	"io/ioutil"
 	"bufio"
 	"bytes"
 	"strings"
@@ -19,15 +18,7 @@ type ToProcStat struct {
 
 func listToProcStat() (toProcStats []*ToProcStat) {
 	cmd := exec.Command("sh", "-c", "ps aux|grep -v PID|sort -rn -k3|head -3")
-	stdout, err := cmd.StdoutPipe()
-	defer stdout.Close()
-	if nil != err {
-
-	}
-	if err := cmd.Run(); nil != err {
-
-	}
-	outBs, err := ioutil.ReadAll(stdout)
+	outBs, err := cmd.Output()
 	if nil != err {
 
 	}
