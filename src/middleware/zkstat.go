@@ -45,7 +45,7 @@ func listZkStats(zkPorts []uint64) (zkStats []*ZkStat) {
 			if nil != err {
 				break
 			}
-			fields := strings.Fields(*(*string)(&line))
+			fields := strings.Fields(string(line))
 			switch fields[0] {
 			case "zk_avg_latency":
 				if oneStat.ZkAvgLatency, err = strconv.ParseFloat(fields[1], 64); nil != err {
