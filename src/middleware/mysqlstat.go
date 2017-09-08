@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	mysqlStatMap = make(map[string][2]*MYSQLSTATS)
+	mysqlStatMap = make(map[string][2]*MysqlStat)
 	mysqlLock    = new(sync.RWMutex)
 )
 //mysql metrics
@@ -37,13 +37,13 @@ const (
 	Seconds_Behind_Master = " -e \"show slave status\\G\" |  grep Seconds_Behind_Master | awk '{print $2}'"
 )
 
-type MYSQLCONFIG struct {
+type MySqlConfig struct {
 	Host   string
 	Port   uint64
 	User   string
 	Passwd string
 }
-type MYSQLSTATS struct {
+type MysqlStat struct {
 	Port                string
 	Uptime              string
 	Threads             string
@@ -63,10 +63,10 @@ type MYSQLSTATS struct {
 	SecondsBehindMaster string
 }
 
-func listMysqlStatus(configs []*MYSQLCONFIG) (mysqlStats []*MYSQLSTATS) {
+func listMysqlStatus(configs []MySqlConfig) (mysqlStats []*MysqlStat) {
 	for _, config := range configs {
 
-		mysqlStat := MYSQLSTATS{Port: strconv.FormatUint(config.Port, 10)}
+		mysqlStat := MysqlStat{Port: strconv.FormatUint(config.Port, 10)}
 		cmdArg := fmt.Sprintf(MYSQL_STATUS, config.Host, config.Port, config.User, config.Passwd)
 		cmd := exec.Command("sh", "-c", cmdArg)
 		bs, err := cmd.Output()
@@ -192,14 +192,14 @@ func listMysqlStatus(configs []*MYSQLCONFIG) (mysqlStats []*MYSQLSTATS) {
 	return
 }
 
-func (*MYSQLSTATS) Metrics() (metrics []*model.MetricValue) {
-	mysqlStats := listMysqlStatus([]*MYSQLCONFIG{})
+func (*MysqlStat) Metrics(configs []MySqlConfig) (metrics []*model.MetricValue) {
+	mysqlStats := listMysqlStatus(configs)
 	//rw
 	mysqlLock.Lock()
 	defer mysqlLock.Unlock()
 	for _, oneStat := range mysqlStats {
 
-		mysqlStatMap[oneStat.Port] = [2]*MYSQLSTATS{oneStat, mysqlStatMap[oneStat.Port][0]}
+		mysqlStatMap[oneStat.Port] = [2]*MysqlStat{oneStat, mysqlStatMap[oneStat.Port][0]}
 		prevStat := mysqlStatMap[oneStat.Port][1]
 		metrics = append(metrics, &model.MetricValue{Endpoint: "mysql", Metric: "mysql.uptime", Value: oneStat.Uptime, Tags: map[string]string{"port": oneStat.Port}})
 		metrics = append(metrics, &model.MetricValue{Endpoint: "mysql", Metric: "mysql.threads", Value: oneStat.Threads, Tags: map[string]string{"port": oneStat.Port}})
@@ -212,9 +212,29 @@ func (*MYSQLSTATS) Metrics() (metrics []*model.MetricValue) {
 			brecv = 0
 			tps = 0
 		} else {
-			bsent = float64(uint64(oneStat.ByteSent)-uint64(prevStat.ByteSent)) / float64(1024)
-			brecv = float64(uint64(oneStat.BytesReceived)-uint64(prevStat.BytesReceived)) / float64(1024)
-			tps = float64(uint64(oneStat.Tps)-uint64(prevStat.Tps)) / float64(interval)
+			var nowByteSent, prevByteSend, nowByteRecv, prevByteRecv, nowTps, PrevTps uint64 = 0, 0, 0, 0, 0, 0
+			var err error
+			if nowByteSent, err = strconv.ParseUint(oneStat.ByteSent, 10, 64); nil != err {
+				nowByteSent = 0
+			}
+			if prevByteSend, err = strconv.ParseUint(prevStat.ByteSent, 10, 64); nil != err {
+				prevByteSend = 0
+			}
+			bsent = float64(nowByteSent-prevByteSend) / float64(1024)
+			if nowByteRecv, err = strconv.ParseUint(oneStat.BytesReceived, 10, 64); nil != err {
+				nowByteRecv = 0
+			}
+			if prevByteRecv, err = strconv.ParseUint(prevStat.BytesReceived, 10, 64); nil != err {
+				prevByteRecv = 0
+			}
+			brecv = float64(nowByteRecv-prevByteRecv) / float64(1024)
+			if nowTps, err = strconv.ParseUint(oneStat.Tps, 10, 64); nil != err {
+				nowTps = 0
+			}
+			if PrevTps, err = strconv.ParseUint(prevStat.Tps, 10, 64); nil != err {
+				PrevTps = 0
+			}
+			tps = float64(nowTps-PrevTps) / float64(interval)
 		}
 		metrics = append(metrics, &model.MetricValue{Endpoint: "mysql", Metric: "mysql.Bytes_received", Value: ntos.F64toS2(brecv, 2), Tags: map[string]string{"port": oneStat.Port}})
 		metrics = append(metrics, &model.MetricValue{Endpoint: "mysql", Metric: "mysql.Bytes_sent", Value: ntos.F64toS2(bsent, 2), Tags: map[string]string{"port": oneStat.Port}})
@@ -226,7 +246,7 @@ func (*MYSQLSTATS) Metrics() (metrics []*model.MetricValue) {
 		metrics = append(metrics, &model.MetricValue{Endpoint: "mysql", Metric: "mysql.tps", Value: ntos.F64toS2(tps, 2), Tags: map[string]string{"port": oneStat.Port}})
 		metrics = append(metrics, &model.MetricValue{Endpoint: "mysql", Metric: "mysql.slave_host.count", Value: oneStat.SlaveHosts, Tags: map[string]string{"port": oneStat.Port}})
 
-		if 0 < int(oneStat.SlaveHosts) {
+		if slaveCount, err := strconv.ParseUint(oneStat.SlaveHosts, 10, 64); nil != err && 0 < slaveCount {
 			metrics = append(metrics, &model.MetricValue{Endpoint: "mysql", Metric: "mysql.slave_io_running", Value: oneStat.SlaveIORunning, Tags: map[string]string{"port": oneStat.Port}})
 			metrics = append(metrics, &model.MetricValue{Endpoint: "mysql", Metric: "mysql.slave_sql_running", Value: oneStat.SlaveSQLRunning, Tags: map[string]string{"port": oneStat.Port}})
 			metrics = append(metrics, &model.MetricValue{Endpoint: "mysql", Metric: "mysql.second_behind_master", Value: oneStat.SecondsBehindMaster, Tags: map[string]string{"port": oneStat.Port}})

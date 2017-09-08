@@ -1,249 +1,161 @@
 package main
 
 import (
-	"os/exec"
-	"bufio"
-	"bytes"
-	"io"
-	"strings"
-	"unicode"
-	"strconv"
-	"fmt"
+	"../config"
+	"../base"
+	"../middleware"
+	"os"
+	time2 "time"
+	"runtime"
 )
 
+var (
+	watchConfig  *config.WatchConfig
+	localhost    string
+	baseInterval uint64
+)
+
+func initial() {
+	watchConfig = config.ReadConfig()
+
+	if _, exist := watchConfig.Base["host"]; !exist {
+		panic("no host in config ,please ensure your agent host...")
+		os.Exit(1)
+	} else {
+		localhost = watchConfig.Base["host"].(string)
+	}
+
+	if _, exist := watchConfig.Base["interval"]; !exist {
+		baseInterval = 5
+	} else {
+		baseInterval = uint64(watchConfig.Base["interval"].(float64))
+	}
+	baseInterval += 1
+}
+func call() {
+	//base call
+	go base.Metrics()
+	//middleware call
+	for _, item := range watchConfig.Enable {
+		switch item {
+		case "cobar":
+			cobars := watchConfig.Cobar
+			var cobarConfigs []middleware.CobarConf
+			for _, oneCobar := range cobars {
+				cobarMap := oneCobar.(map[string]interface{})
+				var host string
+				if _, exist := cobarMap["host"]; !exist {
+					host = localhost
+				} else {
+					host = cobarMap["host"].(string)
+				}
+
+				cobarConfig := middleware.CobarConf{Host: host, Port: uint64(cobarMap["port"].(float64)), User: cobarMap["user"].(string), Passwd: cobarMap["passwd"].(string)}
+				cobarConfigs = append(cobarConfigs, cobarConfig)
+			}
+			cobar := &middleware.CobarStat{}
+			go cobar.Metrics(cobarConfigs)
+		case "memcache":
+			memcacheMap := watchConfig.Memcached
+			var memcacheConfigs []middleware.MemcacheConfig
+			var host string
+			if _, exist := memcacheMap["host"]; !exist {
+				host = localhost
+			} else {
+				host = memcacheMap["host"].(string)
+			}
+			for _, onePort := range memcacheMap["port"].([]float64) {
+				memcacheConfigs = append(memcacheConfigs, middleware.MemcacheConfig{Host: host, Port: uint64(onePort)})
+			}
+			memcache := &middleware.MemcacheStat{}
+			go memcache.Metrics(memcacheConfigs)
+		case "mysql":
+			mysqls := watchConfig.MySql
+			var mysqlConfigs []middleware.MySqlConfig
+			for _, oneMysql := range mysqls {
+				mysqlMap := oneMysql.(map[string]interface{})
+				var host string
+				if _, exist := mysqlMap["host"]; !exist {
+					host = localhost
+				} else {
+					host = mysqlMap["host"].(string)
+				}
+				mysqlConfig := middleware.MySqlConfig{Host: host, Port: uint64(mysqlMap["port"].(float64)), User: mysqlMap["user"].(string), Passwd: mysqlMap["passwd"].(string)}
+				mysqlConfigs = append(mysqlConfigs, mysqlConfig)
+			}
+			mysql := &middleware.MysqlStat{}
+			go mysql.Metrics(mysqlConfigs)
+		case "nginx":
+			nginx := &middleware.NginxStat{}
+			go nginx.Metrics()
+		case "rabbit":
+			rabbits := watchConfig.Rabbit
+			var rabbitConfigs []middleware.RabbitConfig
+			for _, oneRabbit := range rabbits {
+				rabbitMap := oneRabbit.(map[string]interface{})
+				var host string
+				if _, exist := rabbitMap["host"]; !exist {
+					host = localhost
+				} else {
+					host = rabbitMap["host"].(string)
+				}
+				rabbitConfig := middleware.RabbitConfig{Host: host, Port: uint64(rabbitMap["port"].(float64)), User: rabbitMap["user"].(string), Passwd: rabbitMap["passwd"].(string)}
+				rabbitConfigs = append(rabbitConfigs, rabbitConfig)
+			}
+			rabbit := &middleware.RabbitNode{}
+			go rabbit.Metrics(rabbitConfigs)
+		case "redis":
+			redisMap := watchConfig.Redis
+			var redisConfigs []middleware.RedisConfig
+			var host string
+			if _, exist := redisMap["host"]; !exist {
+				host = localhost
+			} else {
+				host = redisMap["host"].(string)
+			}
+			for _, onePort := range redisMap["port"].([]float64) {
+				redisConfigs = append(redisConfigs, middleware.RedisConfig{Host: host, Port: uint64(onePort)})
+			}
+			redis := &middleware.RediStat{}
+			go redis.Metrics(redisConfigs)
+		case "zookeeper":
+			zkMap := watchConfig.Zookeeper
+			var zkConfigs []middleware.ZkConfig
+			var host string
+			if _, exist := zkMap["host"]; !exist {
+				host = localhost
+			} else {
+				host = zkMap["host"].(string)
+			}
+			for _, onePort := range zkMap["port"].([]float64) {
+				zkConfigs = append(zkConfigs, middleware.ZkConfig{Host: host, Port: uint64(onePort)})
+			}
+			zk := &middleware.ZkStat{}
+			go zk.Metrics(zkConfigs)
+		}
+	}
+
+}
+
+func doAgent(exitChan chan struct{}) {
+	timer := time2.NewTicker(3 * time2.Second)
+	for {
+		select {
+		case <-timer.C:
+			call()
+		}
+	}
+	timer.Stop()
+	close(exitChan)
+}
+
+
 func main() {
-	listStatThread()
-}
-
-func listStatThread() {
-	cmd := exec.Command("ssh", "root@192.168.102.76", "mysql -h192.168.102.45 -P9066 -uyh_test -pyh_test -e 'show @@threadpool\\G'")
-	bs, err := cmd.Output()
-	if nil != err {
-		println(err.Error())
-	}
-	println(string(bs))
-	reader := bufio.NewReader(bytes.NewBuffer(bs))
-	process := false
-	var completeTask, taskQueueSize, activeCount uint64 = 0, 0, 0
-	for {
-		bline, err := reader.ReadBytes('\n')
-		if io.EOF == err {
-			break
-		} else if nil != err {
-			panic(err)
-			break
-		}
-		line := strings.TrimFunc(string(bline), unicode.IsSpace)
-		fields := strings.Split(line, ":")
-		if strings.HasPrefix(line, "NAME") {
-			if 2 != len(fields) {
-				process = false
-				continue
-			}
-			fields[0] = strings.TrimFunc(fields[0], unicode.IsSpace)
-			fields[1] = strings.TrimFunc(fields[1], unicode.IsSpace)
-			if strings.HasPrefix(fields[1], "Process") {
-				process = true
-			} else {
-				process = false
-			}
-		}
-		if process {
-			switch fields[0] {
-			case "ACTIVE_COUNT":
-				if count, err := strconv.ParseUint(strings.TrimFunc(fields[1], unicode.IsSpace), 10, 64); nil != err {
-					activeCount += 0
-				} else {
-					activeCount += count
-				}
-			case "COMPLETED_TASK":
-				if count, err := strconv.ParseUint(strings.TrimFunc(fields[1], unicode.IsSpace), 10, 64); nil != err {
-					completeTask += 0
-				} else {
-					completeTask += count
-				}
-			case "TASK_QUEUE_SIZE":
-				if count, err := strconv.ParseUint(strings.TrimFunc(fields[1], unicode.IsSpace), 10, 64); nil != err {
-					taskQueueSize += 0
-				} else {
-					taskQueueSize += count
-				}
-			}
-		}
-	}
-	println("active:" + strconv.FormatUint(activeCount, 10) + "\t taskqueue:" + strconv.FormatUint(taskQueueSize, 10) + "\t complete:" + strconv.FormatUint(completeTask, 10))
-
-}
-
-func listStatProc() {
-	cmd := exec.Command("ssh", "root@192.168.102.76", "mysql -h192.168.102.45 -P9066 -uyh_test -pyh_test -e 'show @@processor\\G'")
-	bs, err := cmd.Output()
-	if nil != err {
-		println(err.Error())
-	}
-	println(string(bs))
-	reader := bufio.NewReader(bytes.NewReader(bs))
-	var process = false
-	var netIn, netOut uint64
-	for {
-		bline, err := reader.ReadBytes('\n')
-		if io.EOF == err {
-			break
-		} else if nil != err {
-			panic(err)
-			break
-		}
-		line := strings.TrimFunc(string(bline), unicode.IsSpace)
-		fields := strings.Split(line, ":")
-		if 2 != len(fields) {
-			process = false
-			continue
-		}
-		fields[0] = strings.TrimFunc(fields[0], unicode.IsSpace)
-		fields[1] = strings.TrimFunc(fields[1], unicode.IsSpace)
-		if 0 == strings.Compare("NAME", fields[0]) {
-			if strings.HasPrefix(fields[1], "Processor") {
-				process = true
-			} else {
-				process = false
-			}
-		}
-		if process {
-			switch fields[0] {
-			case "NET_IN":
-				if count, err := strconv.ParseUint(fields[1], 10, 64); nil != err {
-					netIn += 0
-				} else {
-					netIn += count
-				}
-			case "NET_OUT":
-				if count, err := strconv.ParseUint(fields[1], 10, 64); nil != err {
-					netOut += 0
-				} else {
-					netOut += count
-				}
-			}
-		}
-	}
-	println("netIn:" + strconv.FormatUint(netIn, 10) + "\t netOut:" + strconv.FormatUint(netOut, 10))
-
-}
-
-func listStatTable() {
-	cmd := exec.Command("ssh", "root@192.168.102.76", "mysql -h192.168.102.45 -P9066 -uyh_test -pyh_test -e 'show @@sql.stat.table\\G'")
-	bs, err := cmd.Output()
-	if nil != err {
-		println(err.Error())
-	}
-	println(string(bs))
-	reader := bufio.NewReader(bytes.NewReader(bs))
-	var tableMap = make(map[string]map[string]string)
-	var table string
-	for {
-		bline, err := reader.ReadBytes('\n')
-		if io.EOF == err {
-			break
-		} else if nil != err {
-			panic(err)
-			break
-		}
-		line := strings.TrimFunc(string(bline), unicode.IsSpace)
-		fields := strings.Split(line, ":")
-		if 2 != len(fields) {
-			continue
-		}
-		fields[0] = strings.TrimFunc(fields[0], unicode.IsSpace)
-		fields[1] = strings.TrimFunc(fields[1], unicode.IsSpace)
-		if 0 == strings.Compare("TABLE", fields[0]) {
-			table = fields[1]
-			tableMap[table] = make(map[string]string)
-			continue
-		}
-		switch fields[0] {
-		case "R":
-			tableMap[table]["read"] = fields[1]
-		case "W":
-			tableMap[table]["write"] = fields[1]
-		case "ALL_TTL_COUNT":
-			ttls := fields[1][1:len(fields[1])-1]
-			ttlsFields := strings.Split(ttls, ",")
-			tableMap[table]["cobar_10"] = strings.TrimFunc(ttlsFields[0], unicode.IsSpace)
-			tableMap[table]["cobar_50"] = strings.TrimFunc(ttlsFields[1], unicode.IsSpace)
-			tableMap[table]["cobar_200"] = strings.TrimFunc(ttlsFields[2], unicode.IsSpace)
-			tableMap[table]["cobar_1000"] = strings.TrimFunc(ttlsFields[3], unicode.IsSpace)
-			tableMap[table]["cobar_2000"] = strings.TrimFunc(ttlsFields[4], unicode.IsSpace)
-		case "NODE_TTL_COUNT":
-			ttls := fields[1][2:len(fields[1])-1]
-			ttlsFields := strings.Split(ttls, ",")
-			tableMap[table]["node_10"] = strings.TrimFunc(ttlsFields[0], unicode.IsSpace)
-			tableMap[table]["node_10"] = strings.TrimFunc(ttlsFields[1], unicode.IsSpace)
-			tableMap[table]["node_10"] = strings.TrimFunc(ttlsFields[2], unicode.IsSpace)
-			tableMap[table]["node_10"] = strings.TrimFunc(ttlsFields[3], unicode.IsSpace)
-			tableMap[table]["node_10"] = strings.TrimFunc(ttlsFields[4], unicode.IsSpace)
-		default:
-			continue
-		}
-	}
-
-}
-
-func listStatSchema() {
-	cmd := exec.Command("ssh", "root@192.168.102.76", "mysql -h192.168.102.45 -P9066 -uyh_test -pyh_test -e 'show @@sql.stat.schema\\G'")
-	bs, err := cmd.Output()
-	if nil != err {
-		println(err.Error())
-	}
-	println(string(bs))
-	reader := bufio.NewReader(bytes.NewReader(bs))
-	var tableMap = make(map[string]map[string]string)
-	var table string
-	for {
-		bline, err := reader.ReadBytes('\n')
-		if io.EOF == err {
-			break
-		} else if nil != err {
-			panic(err)
-			break
-		}
-		line := strings.TrimFunc(string(bline), unicode.IsSpace)
-		fields := strings.Split(line, ":")
-		if 2 != len(fields) {
-			continue
-		}
-		fields[0] = strings.TrimFunc(fields[0], unicode.IsSpace)
-		fields[1] = strings.TrimFunc(fields[1], unicode.IsSpace)
-		if 0 == strings.Compare("SCHEMA", fields[0]) {
-			table = fields[1]
-			tableMap[table] = make(map[string]string)
-			continue
-		}
-		switch fields[0] {
-		case "R":
-			tableMap[table]["read"] = fields[1]
-		case "W":
-			tableMap[table]["write"] = fields[1]
-		case "ALL_TTL_COUNT":
-			ttls := fields[1][1:len(fields[1])-1]
-			ttlsFields := strings.Split(ttls, ",")
-			tableMap[table]["cobar_10"] = strings.TrimFunc(ttlsFields[0], unicode.IsSpace)
-			tableMap[table]["cobar_50"] = strings.TrimFunc(ttlsFields[1], unicode.IsSpace)
-			tableMap[table]["cobar_200"] = strings.TrimFunc(ttlsFields[2], unicode.IsSpace)
-			tableMap[table]["cobar_1000"] = strings.TrimFunc(ttlsFields[3], unicode.IsSpace)
-			tableMap[table]["cobar_2000"] = strings.TrimFunc(ttlsFields[4], unicode.IsSpace)
-		case "NODE_TTL_COUNT":
-			ttls := fields[1][2:len(fields[1])-1]
-			ttlsFields := strings.Split(ttls, ",")
-			tableMap[table]["node_10"] = strings.TrimFunc(ttlsFields[0], unicode.IsSpace)
-			tableMap[table]["node_10"] = strings.TrimFunc(ttlsFields[1], unicode.IsSpace)
-			tableMap[table]["node_10"] = strings.TrimFunc(ttlsFields[2], unicode.IsSpace)
-			tableMap[table]["node_10"] = strings.TrimFunc(ttlsFields[3], unicode.IsSpace)
-			tableMap[table]["node_10"] = strings.TrimFunc(ttlsFields[4], unicode.IsSpace)
-		default:
-			continue
-		}
-	}
-	for k,v := range tableMap{
-		println("schema:"+k)
-		fmt.Println(v)
-	}
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	exitChan := make(chan struct{})
+	initial()
+	//call per 5second
+	go doAgent(exitChan)
+	<-exitChan
+	os.Exit(0)
 }

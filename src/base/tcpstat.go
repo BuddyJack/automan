@@ -28,7 +28,7 @@ func listTcpConnStat() *TcpConnStat {
 		if nil != err {
 			break
 		}
-		fields := strings.Fields(*(*string)(&line))
+		fields := strings.Fields(string(line))
 		switch fields[0] {
 		case "TIME_WAIT":
 			if oneStat.TimeWait, err = strconv.ParseUint(fields[1], 10, 64); nil != err {

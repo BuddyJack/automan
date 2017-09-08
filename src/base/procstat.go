@@ -5,7 +5,6 @@ import (
 	"bufio"
 	"bytes"
 	"strings"
-	"unsafe"
 	"../model"
 )
 
@@ -28,7 +27,7 @@ func listToProcStat() (toProcStats []*ToProcStat) {
 		if nil != err {
 			break
 		}
-		fields := strings.Fields(*(*string)(unsafe.Pointer(line)))
+		fields := strings.Fields(string(line))
 		toProcStats = append(toProcStats, &ToProcStat{User: fields[0], Id: fields[1], Proc: fields[10], UseCpu: fields[2]})
 	}
 

@@ -18,15 +18,20 @@ type ZkStat struct {
 	Port                  string
 }
 
-func listZkStats(zkPorts []uint64) (zkStats []*ZkStat) {
-	for idx := range zkPorts {
-		onePort := zkPorts[idx]
-		tcpAddr, err := net.ResolveTCPAddr("tcp4", strings.Join([]string{"127.0.0.1"}, strconv.Itoa(int(onePort))))
+type ZkConfig struct {
+	Host string
+	Port uint64
+}
+
+func listZkStats(configs []ZkConfig) (zkStats []*ZkStat) {
+	for _, oneConfig := range configs {
+		onePort := strconv.FormatUint(oneConfig.Port, 10)
+		tcpAddr, err := net.ResolveTCPAddr("tcp4", oneConfig.Host+":"+onePort)
 		if nil != err {
 			continue
 		}
 		tcpConn, err := net.DialTCP("tcp4", nil, tcpAddr)
-		oneStat := &ZkStat{Port: strconv.FormatUint(onePort, 10)}
+		oneStat := &ZkStat{Port: onePort}
 		defer tcpConn.Close()
 		tcpConn.Write([]byte("ruok"))
 		var resp = make([]byte, 1024/8)
@@ -75,8 +80,8 @@ func listZkStats(zkPorts []uint64) (zkStats []*ZkStat) {
 	return
 }
 
-func (*ZkStat) Metrics() (metrics []*model.MetricValue) {
-	zkstatList := listZkStats([]uint64{})
+func (*ZkStat) Metrics(configs []ZkConfig) (metrics []*model.MetricValue) {
+	zkstatList := listZkStats(configs)
 	for idx := range zkstatList {
 		onestat := zkstatList[idx]
 		metrics = append(metrics, &model.MetricValue{Endpoint: "zookeeper", Metric: "zookeeper.zk_is_leader", Value: strconv.FormatUint(onestat.ZkIsLeader, 10), Tags: map[string]string{"port": onestat.Port}})

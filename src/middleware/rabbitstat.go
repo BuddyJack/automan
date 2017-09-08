@@ -33,16 +33,23 @@ type RabbitQueue struct {
 	AckRate          string
 }
 
-func listRabbitNodes(ports []uint64) (nodes []*RabbitNode) {
-	for _, onePort := range ports {
-		var url = "http://192.168.102.76:" + strconv.FormatUint(onePort, 10) + "/api/overview"
+type RabbitConfig struct {
+	Host   string
+	Port   uint64
+	User   string
+	Passwd string
+}
+
+func listRabbitNodes(configs []RabbitConfig) (nodes []*RabbitNode) {
+	for _, oneConfig := range configs {
+		var url = "http://" + oneConfig.Host + ":" + strconv.FormatUint(oneConfig.Port, 10) + "/api/overview"
 		client := http.DefaultClient
 		req, _ := http.NewRequest("GET", url, nil)
-		req.SetBasicAuth("guest", "guest")
+		req.SetBasicAuth(oneConfig.User, oneConfig.Passwd)
 		resp, _ := client.Do(req)
 		defer resp.Body.Close()
 		bs, _ := ioutil.ReadAll(resp.Body)
-		println(string(bs))
+		//println(string(bs))
 		var target interface{}
 		json.Unmarshal(bs, &target)
 		m := target.(map[string]interface{})
@@ -59,12 +66,12 @@ func listRabbitNodes(ports []uint64) (nodes []*RabbitNode) {
 	return
 }
 
-func listRabbitQueus(ports []uint64) (queues []*RabbitQueue) {
-	for _, onePort := range ports {
-		var url = "http://192.168.102.76:" + strconv.FormatUint(onePort, 10) + "/api/queues"
+func listRabbitQueus(configs []RabbitConfig) (queues []*RabbitQueue) {
+	for _, oneConfig := range configs {
+		var url = "http://" + oneConfig.Host + ":" + strconv.FormatUint(oneConfig.Port, 10) + "/api/queues"
 		client := http.DefaultClient
 		req, _ := http.NewRequest("GET", url, nil)
-		req.SetBasicAuth("guest", "guest")
+		req.SetBasicAuth(oneConfig.User, oneConfig.Passwd)
 		resp, _ := client.Do(req)
 		defer resp.Body.Close()
 		var target interface{}
@@ -104,8 +111,8 @@ func listRabbitQueus(ports []uint64) (queues []*RabbitQueue) {
 	return nil
 }
 
-func (*RabbitNode) Metrics() (metrics []*model.MetricValue) {
-	nodes := listRabbitNodes([]uint64{15672})
+func (*RabbitNode) Metrics(configs []RabbitConfig) (metrics []*model.MetricValue) {
+	nodes := listRabbitNodes(configs)
 	for _, node := range nodes {
 		metrics = append(metrics, &model.MetricValue{Endpoint: "rabbit", Metric: "rabbit.overview.message_ready", Value: node.MsgReady, Tags: map[string]string{"node": node.Node}})
 		metrics = append(metrics, &model.MetricValue{Endpoint: "rabbit", Metric: "rabbit.overview.message_unack", Value: node.MsgUnack, Tags: map[string]string{"node": node.Node}})
@@ -113,7 +120,7 @@ func (*RabbitNode) Metrics() (metrics []*model.MetricValue) {
 		metrics = append(metrics, &model.MetricValue{Endpoint: "rabbit", Metric: "rabbit.overview.consumers", Value: node.Consumers, Tags: map[string]string{"node": node.Node}})
 		metrics = append(metrics, &model.MetricValue{Endpoint: "rabbit", Metric: "rabbit.overview.queues", Value: node.Queues, Tags: map[string]string{"node": node.Node}})
 	}
-	queues := listRabbitQueus([]uint64{15672})
+	queues := listRabbitQueus(configs)
 	for _, queue := range queues {
 		metrics = append(metrics, &model.MetricValue{Endpoint: "rabbit", Metric: "rabbit.queue.consumers", Value: queue.QueueConsumers, Tags: map[string]string{"node": queue.Node, "vhost": queue.Vhost, "queue": queue.Queue}})
 		metrics = append(metrics, &model.MetricValue{Endpoint: "rabbit", Metric: "rabbit.queue.messages_unacknowledged", Value: queue.QueueMsgUnack, Tags: map[string]string{"node": queue.Node, "vhost": queue.Vhost, "queue": queue.Queue}})

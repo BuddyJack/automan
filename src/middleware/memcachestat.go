@@ -36,10 +36,15 @@ type MemcacheStat struct {
 	CmdSet          uint64
 }
 
-func listMemcacheStats(ports []uint64) (memcacheStats []*MemcacheStat) {
-	for _, port := range ports {
-		onePort := strconv.FormatUint(port, 10)
-		tcpAddr, err := net.ResolveTCPAddr("tcp4", "192.168.102.76:"+onePort)
+type MemcacheConfig struct {
+	Host string
+	Port uint64
+}
+
+func listMemcacheStats(configs []MemcacheConfig) (memcacheStats []*MemcacheStat) {
+	for _, oneConfig := range configs {
+		onePort := strconv.FormatUint(oneConfig.Port, 10)
+		tcpAddr, err := net.ResolveTCPAddr("tcp4", oneConfig.Host+":"+onePort)
 		if nil != err {
 			continue
 		}
@@ -106,8 +111,8 @@ func listMemcacheStats(ports []uint64) (memcacheStats []*MemcacheStat) {
 	return
 }
 
-func (*MemcacheStat) Metrics() (metrics []*model.MetricValue) {
-	memcacheStatList := listMemcacheStats([]uint64{})
+func (*MemcacheStat) Metrics(configs []MemcacheConfig) (metrics []*model.MetricValue) {
+	memcacheStatList := listMemcacheStats(configs)
 	if nil == memcacheStatList {
 		return nil
 	}

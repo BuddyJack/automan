@@ -451,18 +451,18 @@ func listCobarSchemaStat(cobarConfs []CobarConf) (metrics []*model.MetricValue) 
 				node1000 = oneSchema.Node1000 - prevSchema.Node1000
 				node2000 = oneSchema.Node2000 - prevSchema.Node2000
 			}
-			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.read", Value: strconv.FormatUint(read, 10), Tags: map[string]string{"port": onePort, "table": tableName}})
-			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.write", Value: strconv.FormatUint(write, 10), Tags: map[string]string{"port": onePort, "table": tableName}})
-			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.cobar10", Value: strconv.FormatUint(cobar10, 10), Tags: map[string]string{"port": onePort, "table": tableName}})
-			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.cobar50", Value: strconv.FormatUint(cobar50, 10), Tags: map[string]string{"port": onePort, "table": tableName}})
-			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.cobar200", Value: strconv.FormatUint(cobar200, 10), Tags: map[string]string{"port": onePort, "table": tableName}})
-			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.cobar1000", Value: strconv.FormatUint(cobar1000, 10), Tags: map[string]string{"port": onePort, "table": tableName}})
-			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.cobar2000", Value: strconv.FormatUint(cobar2000, 10), Tags: map[string]string{"port": onePort, "table": tableName}})
-			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.node10", Value: strconv.FormatUint(node10, 10), Tags: map[string]string{"port": onePort, "table": tableName}})
-			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.node50", Value: strconv.FormatUint(node50, 10), Tags: map[string]string{"port": onePort, "table": tableName}})
-			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.node200", Value: strconv.FormatUint(node200, 10), Tags: map[string]string{"port": onePort, "table": tableName}})
-			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.node1000", Value: strconv.FormatUint(node1000, 10), Tags: map[string]string{"port": onePort, "table": tableName}})
-			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.node2000", Value: strconv.FormatUint(node2000, 10), Tags: map[string]string{"port": onePort, "table": tableName}})
+			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.read", Value: strconv.FormatUint(read, 10), Tags: map[string]string{"port": onePort, "schema": shcemaName}})
+			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.write", Value: strconv.FormatUint(write, 10), Tags: map[string]string{"port": onePort, "schema": shcemaName}})
+			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.cobar10", Value: strconv.FormatUint(cobar10, 10), Tags: map[string]string{"port": onePort, "schema": shcemaName}})
+			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.cobar50", Value: strconv.FormatUint(cobar50, 10), Tags: map[string]string{"port": onePort, "schema": shcemaName}})
+			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.cobar200", Value: strconv.FormatUint(cobar200, 10), Tags: map[string]string{"port": onePort, "schema": shcemaName}})
+			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.cobar1000", Value: strconv.FormatUint(cobar1000, 10), Tags: map[string]string{"port": onePort, "schema": shcemaName}})
+			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.cobar2000", Value: strconv.FormatUint(cobar2000, 10), Tags: map[string]string{"port": onePort, "schema": shcemaName}})
+			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.node10", Value: strconv.FormatUint(node10, 10), Tags: map[string]string{"port": onePort, "schema": shcemaName}})
+			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.node50", Value: strconv.FormatUint(node50, 10), Tags: map[string]string{"port": onePort, "schema": shcemaName}})
+			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.node200", Value: strconv.FormatUint(node200, 10), Tags: map[string]string{"port": onePort, "schema": shcemaName}})
+			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.node1000", Value: strconv.FormatUint(node1000, 10), Tags: map[string]string{"port": onePort, "schema": shcemaName}})
+			metrics = append(metrics, &model.MetricValue{Endpoint: "cobar", Metric: "cobar.table.node2000", Value: strconv.FormatUint(node2000, 10), Tags: map[string]string{"port": onePort, "schema": shcemaName}})
 
 		}
 	}
@@ -473,5 +473,6 @@ func (*CobarStat) Metrics(cobarConfs []CobarConf) (metrics []*model.MetricValue)
 	go listCobarStat(cobarConfs)
 	go listCobarTableStat(cobarConfs)
 	go listCobarSchemaStat(cobarConfs)
+
 	return
 }

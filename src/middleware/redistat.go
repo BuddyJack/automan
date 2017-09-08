@@ -31,15 +31,20 @@ type RediStat struct {
 	Port            string
 }
 
-func listRediStats(ports []uint64) (rediStats []*RediStat) {
-	for idx := range ports {
-		onePort := strconv.FormatUint(ports[idx], 10)
+type RedisConfig struct {
+	Host string
+	Port uint64
+}
+
+func listRediStats(configs []RedisConfig) (rediStats []*RediStat) {
+	for _, oneConfig := range configs {
+		onePort := strconv.FormatUint(oneConfig.Port, 10)
 		//save client vs reconnect in every batch
 		client := clientMap[onePort]
 		if nil == client {
 			if _, err := client.Ping().Result(); nil != err {
 				client = nil
-				client = redis.NewClient(&redis.Options{Addr: "", DB: 0})
+				client = redis.NewClient(&redis.Options{Addr: oneConfig.Host + ":" + onePort, DB: 0})
 				clientMap[onePort] = client
 			}
 		}
@@ -117,8 +122,8 @@ func listRediStats(ports []uint64) (rediStats []*RediStat) {
 	return
 }
 
-func (*RediStat) Metrics() (metrics []*model.MetricValue) {
-	rediStatList := listRediStats([]uint64{})
+func (*RediStat) Metrics(configs []RedisConfig) (metrics []*model.MetricValue) {
+	rediStatList := listRediStats(configs)
 	redisLock.Lock()
 	defer redisLock.Unlock()
 	for idx, oneStat := range rediStatList {
