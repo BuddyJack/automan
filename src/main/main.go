@@ -1,18 +1,23 @@
 package main
 
 import (
+	"../transfer"
 	"../config"
 	"../base"
 	"../middleware"
 	"os"
 	time2 "time"
-	"runtime"
+	//"runtime"
+	"strconv"
+	"../model"
 )
 
 var (
 	watchConfig  *config.WatchConfig
 	localhost    string
 	baseInterval uint64
+	udpHost      string
+	udpPort      uint64
 )
 
 func initial() {
@@ -30,7 +35,20 @@ func initial() {
 	} else {
 		baseInterval = uint64(watchConfig.Base["interval"].(float64))
 	}
-	baseInterval += 1
+
+	//construct udp address
+	if _, exist := watchConfig.Base["udp_host"]; !exist {
+		panic("not found transfer center host ...")
+	} else {
+		udpHost = watchConfig.Base["udp_host"].(string)
+	}
+
+	if _, exist := watchConfig.Base["udp_port"]; !exist {
+		panic("not found transfer center port ...")
+	} else {
+		udpPort = uint64(watchConfig.Base["udp_port"].(float64))
+	}
+	transfer.InitConn(udpHost + ":" + strconv.FormatUint(udpPort, 10))
 }
 func call() {
 	//base call
@@ -149,13 +167,19 @@ func doAgent(exitChan chan struct{}) {
 	close(exitChan)
 }
 
+//
+//func main() {
+//	runtime.GOMAXPROCS(runtime.NumCPU())
+//	exitChan := make(chan struct{})
+//	initial()
+//	//call per 5second
+//	go doAgent(exitChan)
+//	<-exitChan
+//	os.Exit(0)
+//}
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	exitChan := make(chan struct{})
 	initial()
-	//call per 5second
-	go doAgent(exitChan)
-	<-exitChan
-	os.Exit(0)
+	//call()
 }
+

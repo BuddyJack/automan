@@ -2,9 +2,8 @@ package config
 
 import (
 	"io/ioutil"
-	"encoding/json"
-
 	"io"
+	"encoding/json"
 )
 
 const (
